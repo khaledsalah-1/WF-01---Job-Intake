@@ -1,0 +1,894 @@
+{
+  "name": "WF-01 - Job Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-intake",
+        "options": {}
+      },
+      "id": "67b9ec06-85c2-4242-8b38-3fac68cac729",
+      "name": "Webhook - Job Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        448,
+        384
+      ],
+      "webhookId": "79f1a4e0-62f4-4651-a93c-423042e1da01"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\nfor (const item of items) {\n  const body = item.json.body || item.json;\n  let contentType = \"text\";\n  let rawText = \"\";\n  let jobUrl = \"\";\n  let binary = item.binary;\n  if (binary && Object.keys(binary).length > 0) {\n    const firstKey = Object.keys(binary)[0];\n    binary = { data: binary[firstKey] };\n    contentType = \"pdf\";\n  } else if (body.job_url) {\n    contentType = \"url\";\n    jobUrl = body.job_url;\n  } else {\n    contentType = \"text\";\n    rawText = body.raw_text || body.text || JSON.stringify(body);\n  }\n  output.push({ json: { contentType: contentType, rawText: rawText, jobUrl: jobUrl, sourceType: \"webhook\" }, binary: binary });\n}\nreturn output;"
+      },
+      "id": "5f4dd6ee-98c3-4cd3-aea1-4a07ab63064d",
+      "name": "Classify Webhook Source",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.contentType }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "pdf"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.contentType }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "url"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.contentType }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "text"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Unclassified"
+        }
+      },
+      "id": "3219cc6f-e894-48fb-8209-5836abde86f6",
+      "name": "Route by Content Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "64fc4659-fc00-435b-9f68-74fd55bf2855",
+      "name": "Extract Text from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rt",
+              "name": "rawText",
+              "value": "={{ $json.data }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "ae06dbf5-29b3-43fa-9cf0-061ef457d775",
+      "name": "Set Raw Text (PDF)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1568,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rt",
+              "name": "rawText",
+              "value": "={{ $json.rawText || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "st",
+              "name": "sourceType",
+              "value": "={{ $json.sourceType }}",
+              "type": "string"
+            },
+            {
+              "id": "ju",
+              "name": "jobUrl",
+              "value": "={{ $json.jobUrl || \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "95cb9c99-eae8-425b-8c4a-91811356afa3",
+      "name": "Normalize Job Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1792,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jobUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "a7e83bff-ffc2-40f5-b5e5-f428c393234c",
+      "name": "Fetch Job URL Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "457d3afe-c46a-4d4c-8bad-bba25e0c6da8",
+      "name": "Extract Text from HTML",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1.2,
+      "position": [
+        1344,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rt",
+              "name": "rawText",
+              "value": "={{ $json.bodyText }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f57e0437-d77a-46d9-bf07-de29c4fba317",
+      "name": "Set Raw Text (URL)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1568,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO workflow_logs (workflow_name, execution_id, status, input_summary, error_message)\nVALUES ('WF-01 Job Intake', $1, 'failed', $2, 'Unclassified job source content type');",
+        "options": {
+          "queryReplacement": "={{ [$execution.id, JSON.stringify($json)] }}"
+        }
+      },
+      "id": "da8b4378-3d25-44c2-93c0-02c519d65fe5",
+      "name": "Log Unclassified Source",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        528
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "<__PLACEHOLDER_VALUE__Admin Telegram Chat ID (TELEGRAM_ADMIN_CHAT_ID)__>",
+        "text": "=Job Intake could not classify an incoming source. Manual review needed.\nExecution ID: {{ $execution.id }}",
+        "additionalFields": {}
+      },
+      "id": "5476937a-d2b0-4b2d-81be-0eccd043d1b1",
+      "name": "Notify Admin - Unclassified Source",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1344,
+        528
+      ],
+      "webhookId": "1e209462-29e0-47f7-89b0-b5d6b36acf1f",
+      "credentials": {
+        "telegramApi": {
+          "id": "uJHtC4NXT4Jvhm3u",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "7b8da432-3e48-4e95-9393-335771086c7f",
+      "name": "Telegram - Job Intake",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        128
+      ],
+      "webhookId": "fe974826-c601-4f74-9101-acf53f547cb7",
+      "credentials": {
+        "telegramApi": {
+          "id": "uJHtC4NXT4Jvhm3u",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.message.document ? true : false }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "rightValue": true,
+              "id": "cfb4d7a0-7e1b-4dcc-983f-b3388770881b"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d1e4b496-c709-4d60-9b6e-9ec0bfc24219",
+      "name": "Telegram: Has Document?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.document.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "1bf8daca-b60e-4f3c-bf34-f2a90be340fe",
+      "name": "Download Telegram File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        0
+      ],
+      "webhookId": "b44c4e72-e05e-42e4-bd57-f2f57b29ab20",
+      "credentials": {
+        "telegramApi": {
+          "id": "uJHtC4NXT4Jvhm3u",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ct",
+              "name": "contentType",
+              "value": "pdf",
+              "type": "string"
+            },
+            {
+              "id": "st",
+              "name": "sourceType",
+              "value": "telegram",
+              "type": "string"
+            },
+            {
+              "id": "ju",
+              "name": "jobUrl",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "rt",
+              "name": "rawText",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "54a62a4b-bec4-4a65-a3b5-cff531683646",
+      "name": "Set Telegram PDF Meta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\nfor (const item of items) {\n  const text = (item.json.message && item.json.message.text) ? item.json.message.text : \"\";\n  const isUrl = /^https?:\\/\\//i.test(text.trim());\n  output.push({ json: { contentType: isUrl ? \"url\" : \"text\", rawText: isUrl ? \"\" : text, jobUrl: isUrl ? text.trim() : \"\", sourceType: \"telegram\" } });\n}\nreturn output;"
+      },
+      "id": "175caded-98d9-40c7-9a94-4546066705e9",
+      "name": "Classify Telegram Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "downloadAttachments": true,
+        "options": {}
+      },
+      "id": "c989585d-fb8b-4587-81a3-f661ba1af507",
+      "name": "Email - Job Intake (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        448,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst output = [];\nfor (const item of items) {\n  let contentType = \"text\";\n  let rawText = \"\";\n  let binary = item.binary;\n  if (binary && Object.keys(binary).length > 0) {\n    const firstKey = Object.keys(binary)[0];\n    binary = { data: binary[firstKey] };\n    contentType = \"pdf\";\n  } else {\n    contentType = \"text\";\n    rawText = item.json.text || item.json.textHtml || \"\";\n  }\n  output.push({ json: { contentType: contentType, rawText: rawText, jobUrl: \"\", sourceType: \"email\" }, binary: binary });\n}\nreturn output;"
+      },
+      "id": "8db961fc-1dc5-4d22-9eca-bbbfdbcfbbae",
+      "name": "Classify Email Source",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract structured job posting information from the text below. Follow these rules strictly:\n- Do NOT invent or assume any information that is not explicitly present in the text.\n- If a field is not mentioned, leave it as an empty string or an empty array.\n- Return valid JSON matching the required schema only.\n\nJob posting source: {{ $json.sourceType }}\nJob URL (if any): {{ $json.jobUrl }}\n\nRaw job posting text:\n{{ $json.rawText }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "134d7076-1026-4377-b5f6-645eeb357239",
+      "name": "AI Job Analyzer - Structured Extraction",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2016,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "model": "={{ \"claude-sonnet-4-6\" }}",
+        "options": {}
+      },
+      "id": "f8f1c782-236f-487b-bf11-c515ab65a054",
+      "name": "Claude Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2032,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{ \"company\": \"Acme Corp\", \"job_title\": \"Backend Engineer\", \"location\": \"Remote\", \"employment_type\": \"full-time\", \"experience_required\": \"3-5 years\", \"salary\": \"80000-100000 USD\", \"skills\": [\"Python\", \"PostgreSQL\"], \"responsibilities\": [\"Build REST APIs\"], \"requirements\": [\"University degree\"], \"source\": \"webhook\", \"job_url\": \"https://example.com/jobs/99\" }"
+      },
+      "id": "7cbaf0d6-72e6-4991-99b2-b8c965c8b858",
+      "name": "Job Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2160,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "type": "SHA256",
+        "value": "={{ ($json.company || \"\").toLowerCase() }}|{{ ($json.job_title || \"\").toLowerCase() }}|{{ $json.job_url || \"\" }}",
+        "dataPropertyName": "dedupHash"
+      },
+      "id": "c60729b0-f188-488d-8ba6-dc4c650657e7",
+      "name": "Compute Dedup Hash",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO jobs (job_title, location, employment_type, experience_required, salary_range, raw_description, job_url, source, dedup_hash, analysis_json, status)\nVALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'new')\nON CONFLICT (dedup_hash) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.job_title, $json.location, $json.employment_type, $json.experience_required, $json.salary, $('Normalize Job Payload').item.json.rawText, $json.job_url, $json.source, $json.dedupHash, JSON.stringify($json)] }}"
+        }
+      },
+      "id": "dcd7c9a9-e589-41d2-8a98-ae37e244b03f",
+      "name": "Insert Job If New (Dedup)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2592,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "62e01c67-a277-4d7c-9af4-a8b1146e36e0",
+      "name": "Ready for WF-02 Job Analysis (connect Execute Workflow once WF-02 exists)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2816,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "<__PLACEHOLDER_VALUE__Admin Telegram Chat ID (TELEGRAM_ADMIN_CHAT_ID)__>",
+        "text": "=New job saved to intake queue.\nJob ID: {{ $json.id }}",
+        "additionalFields": {}
+      },
+      "id": "67c61078-edf0-4bd8-9f66-68a0713ee65d",
+      "name": "Notify Admin - New Job Saved",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3040,
+        240
+      ],
+      "webhookId": "7132a115-9dd0-4642-9622-233f7444f5f1",
+      "credentials": {
+        "telegramApi": {
+          "id": "uJHtC4NXT4Jvhm3u",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## WF-01 - Job Intake\nيستقبل الوظائف من Webhook / Telegram / Email، يوحّد الصيغة، يمنع التكرار، ويخزنها في PostgreSQL جاهزة لـ WF-02.",
+        "color": 4
+      },
+      "id": "c54d62b6-9908-45b3-ae28-fd390933eb14",
+      "name": "Sticky Note 65497807",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Dedup بدون Race Condition\nنستخدم INSERT ... ON CONFLICT (dedup_hash) DO NOTHING RETURNING id بدل SELECT ثم INSERT منفصلين، عشان نضمن Atomicity حتى لو جت نفس الوظيفة من مصدرين في نفس الوقت.",
+        "color": 5
+      },
+      "id": "567373c7-f858-4540-8b4e-3a829c599d04",
+      "name": "Sticky Note 0b7ff0a8",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        832
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Job Intake": {
+      "main": [
+        [
+          {
+            "node": "Classify Webhook Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Webhook Source": {
+      "main": [
+        [
+          {
+            "node": "Route by Content Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Content Type": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Job URL Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Job Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Unclassified Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Set Raw Text (PDF)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Raw Text (PDF)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Job Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Job Payload": {
+      "main": [
+        [
+          {
+            "node": "AI Job Analyzer - Structured Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Job URL Page": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from HTML": {
+      "main": [
+        [
+          {
+            "node": "Set Raw Text (URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Raw Text (URL)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Job Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Unclassified Source": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin - Unclassified Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Job Intake": {
+      "main": [
+        [
+          {
+            "node": "Telegram: Has Document?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram: Has Document?": {
+      "main": [
+        [
+          {
+            "node": "Download Telegram File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify Telegram Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Telegram File": {
+      "main": [
+        [
+          {
+            "node": "Set Telegram PDF Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Telegram PDF Meta": {
+      "main": [
+        [
+          {
+            "node": "Route by Content Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Telegram Text": {
+      "main": [
+        [
+          {
+            "node": "Route by Content Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Job Intake (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Classify Email Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email Source": {
+      "main": [
+        [
+          {
+            "node": "Route by Content Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Job Analyzer - Structured Extraction": {
+      "main": [
+        [
+          {
+            "node": "Compute Dedup Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Job Analyzer - Structured Extraction",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Job Analyzer - Structured Extraction",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Dedup Hash": {
+      "main": [
+        [
+          {
+            "node": "Insert Job If New (Dedup)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Job If New (Dedup)": {
+      "main": [
+        [
+          {
+            "node": "Ready for WF-02 Job Analysis (connect Execute Workflow once WF-02 exists)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready for WF-02 Job Analysis (connect Execute Workflow once WF-02 exists)": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin - New Job Saved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "8bf9e7c0-2352-4cf8-a9b0-6c68c07af913",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "11dc8079eab4d1d5495fafeef30c2a5ba7b7abff79074209ad8017dee33494ca"
+  },
+  "nodeGroups": [],
+  "id": "7l5CBLmM6Mo5TlsC",
+  "tags": []
+}
